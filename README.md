@@ -1,13 +1,51 @@
 # Endfield Factory Compressor
 
-A tool to optimize the layout of factory automation blueprints in *Arknights: Endfield* by minimizing the map area occupied while maintaining production efficiency.
+用于《明日方舟：终末地》基建布局压缩的 Web 工具，目标是在给定产线下自动寻找更小的可行布局。
 
-## Overview
+## 技术栈
 
-In Endfield, the "Infrastructure" (基建) system involves building automated production pipelines. Given a target product, the required buildings are fixed. The optimization challenge is to minimize the floor space used, which primarily involves optimizing connections between power towers and buildings.
+- React 18 + TypeScript + Vite
+- Radix UI + Tailwind CSS
+- `z3-solver`（Microsoft Z3 的 WASM 版本）
+- Web Worker 求解（避免阻塞前端 UI）
 
-## Project Goals
+## 已实现（MVP）
 
-- Automate the optimization process for factory layouts
-- Find the smallest possible blueprints for given target products
-- Minimize power tower and building connection overhead
+- 精选荞愈胶囊示例产线数据（29 台机器）
+- 建筑尺寸模型（3x3 与 3x6）
+- SAT/SMT 约束：建筑边界约束 + 两两不重叠约束
+- 迭代扩边求解策略：
+  - 基于机器总占地面积估算初始 `W/H`
+  - 支持用户手动设置初始 `W/H`
+  - 支持固定 `W` 或固定 `H`，逐步扩边直到找到可行解
+- 连接有效性：
+  - 求解后执行传送带路径搜索，确保每条工艺边可连通
+  - 支持传送带桥（同格正交交叉）标记与可视化
+  - 仅当“布局可放置 + 全链路可连接”时返回 `sat`
+- 前端可视化：
+  - 配置面板（初始边界、固定维度、步长、迭代上限）
+  - 求解面板（实时迭代日志）
+  - 网格渲染结果（建筑、传送带/传送带桥）
+
+## 测试
+
+```bash
+npm run test
+```
+
+## 开发
+
+```bash
+npm install
+npm run dev
+```
+
+## 构建
+
+```bash
+npm run build
+```
+
+## 项目状态
+
+当前范围（不包含电力塔）已完整可用：可配置初始边界、迭代扩边求解、连接校验、传送带桥可视化、测试与构建均通过。
