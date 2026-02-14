@@ -12,22 +12,22 @@ Write-Host ""
 
 # 检查依赖
 Write-Host "检查依赖..." -ForegroundColor Yellow
-if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
-    Write-Host "错误: 未找到 uv" -ForegroundColor Red
+if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
+    Write-Host "错误: 未找到 dotnet" -ForegroundColor Red
     exit 1
 }
 if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
     Write-Host "错误: 未找到 pnpm" -ForegroundColor Red
     exit 1
 }
-Write-Host "  ✓ uv: $(uv --version)" -ForegroundColor Green
+Write-Host "  ✓ dotnet: $(dotnet --version)" -ForegroundColor Green
 Write-Host "  ✓ pnpm: $(pnpm --version)" -ForegroundColor Green
 Write-Host ""
 
 # 快速检查依赖
 Write-Host "准备环境..." -ForegroundColor Yellow
 Push-Location "$ProjectRoot\backend"
-uv sync --quiet 2>$null | Out-Null
+dotnet build --configuration Release -q 2>$null | Out-Null
 Pop-Location
 
 Push-Location "$ProjectRoot\frontend"
@@ -52,10 +52,10 @@ Register-EngineEvent -SourceIdentifier PowerShell.Exiting -Action $Cleanup | Out
 
 try {
     # 启动后端作业
-    Write-Host "启动后端服务器 (http://localhost:8080)..." -ForegroundColor Cyan
+    Write-Host "启动后端服务器 (https://localhost:7238)..." -ForegroundColor Cyan
     $BackendJob = Start-Job -ScriptBlock {
         Set-Location $using:ProjectRoot\backend
-        uv run uvicorn solver.app:app --host 0.0.0.0 --port 8080 --reload
+        dotnet run --configuration Release
     }
 
     Start-Sleep -Seconds 3
@@ -72,7 +72,7 @@ try {
     Write-Host "  ✓ 服务已启动！" -ForegroundColor Green
     Write-Host "=====================================" -ForegroundColor Green
     Write-Host ""
-    Write-Host "  后端: http://localhost:8080" -ForegroundColor White
+    Write-Host "  后端: https://localhost:7238" -ForegroundColor White
     Write-Host "  前端: http://localhost:5173" -ForegroundColor White
     Write-Host ""
     Write-Host "按 Ctrl+C 停止所有服务" -ForegroundColor Gray

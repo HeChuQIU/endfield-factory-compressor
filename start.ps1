@@ -1,6 +1,6 @@
 #!/usr/bin/env pwsh
 # Endfield Factory Compressor - 一键启动脚本
-# 同时启动 Python 后端和 React 前端开发服务器
+# 同时启动 ASP.NET Core 后端和 React 前端开发服务器
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = $PSScriptRoot
@@ -11,11 +11,11 @@ Write-Host "=====================================" -ForegroundColor Cyan
 Write-Host ""
 
 # 检查依赖
-Write-Host "[1/4] 检查依赖..." -ForegroundColor Yellow
+Write-Host "[1/3] 检查依赖..." -ForegroundColor Yellow
 
-# 检查 uv
-if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
-    Write-Host "错误: 未找到 uv 命令。请先安装: https://docs.astral.sh/uv/" -ForegroundColor Red
+# 检查 dotnet
+if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
+    Write-Host "错误: 未找到 dotnet 命令。请先安装 .NET SDK: https://dotnet.microsoft.com/download" -ForegroundColor Red
     exit 1
 }
 
@@ -25,25 +25,25 @@ if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
     exit 1
 }
 
-Write-Host "  ✓ uv: $(uv --version)" -ForegroundColor Green
+Write-Host "  ✓ dotnet: $(dotnet --version)" -ForegroundColor Green
 Write-Host "  ✓ pnpm: $(pnpm --version)" -ForegroundColor Green
 Write-Host ""
 
-# 安装后端依赖
-Write-Host "[2/4] 安装后端依赖..." -ForegroundColor Yellow
+# 恢复后端依赖
+Write-Host "[2/3] 恢复后端依赖..." -ForegroundColor Yellow
 Push-Location "$ProjectRoot\backend"
 try {
-    uv sync --quiet 2>$null
-    Write-Host "  ✓ 后端依赖已同步" -ForegroundColor Green
+    dotnet build --configuration Release -q 2>$null
+    Write-Host "  ✓ 后端已构建" -ForegroundColor Green
 } catch {
-    Write-Host "  警告: 后端依赖同步失败，尝试继续..." -ForegroundColor Yellow
+    Write-Host "  警告: 后端构建失败，尝试继续..." -ForegroundColor Yellow
 } finally {
     Pop-Location
 }
 Write-Host ""
 
 # 安装前端依赖
-Write-Host "[3/4] 安装前端依赖..." -ForegroundColor Yellow
+Write-Host "[3/3] 安装前端依赖..." -ForegroundColor Yellow
 Push-Location "$ProjectRoot\frontend"
 try {
     if (-not (Test-Path "node_modules")) {
@@ -69,10 +69,10 @@ Write-Host "  → 启动后端服务器..." -ForegroundColor Cyan
 $BackendProcess = Start-Process powershell -ArgumentList @(
     "-NoExit",
     "-Command",
-    "cd '$ProjectRoot\backend'; Write-Host '🔧 后端服务器 (http://localhost:8080)' -ForegroundColor Magenta; uv run uvicorn solver.app:app --host 0.0.0.0 --port 8080 --reload"
+    "cd '$ProjectRoot\backend'; Write-Host '🔧 后端服务器 (https://localhost:7238)' -ForegroundColor Magenta; dotnet run --configuration Release"
 ) -PassThru -WindowStyle Normal
 
-Start-Sleep -Seconds 2
+Start-Sleep -Seconds 3
 
 # 启动前端 (新窗口)
 Write-Host "  → 启动前端服务器..." -ForegroundColor Cyan
@@ -87,7 +87,7 @@ Write-Host "=====================================" -ForegroundColor Green
 Write-Host "  ✓ 服务已启动！" -ForegroundColor Green
 Write-Host "=====================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "  后端: http://localhost:8080" -ForegroundColor White
+Write-Host "  后端: https://localhost:7238" -ForegroundColor White
 Write-Host "  前端: http://localhost:5173" -ForegroundColor White
 Write-Host ""
 Write-Host "提示: 关闭新打开的窗口即可停止服务" -ForegroundColor Gray

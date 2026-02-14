@@ -10,7 +10,6 @@ import {
   HubConnection,
   HubConnectionState,
   LogLevel,
-  Subject,
 } from '@microsoft/signalr'
 
 import type {
@@ -111,7 +110,7 @@ function fromSnakeStreamItem(raw: Record<string, unknown>): SolverStreamItem {
 }
 
 export function createSolverClient(url?: string): SolverClient {
-  const hubUrl = url ?? '/solver'
+  const hubUrl = url ?? 'https://localhost:7238/solver'
   let connection: HubConnection | null = null
   let currentStatus: ConnectionStatus = 'disconnected'
 
