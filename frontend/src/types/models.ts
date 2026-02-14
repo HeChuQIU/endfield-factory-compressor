@@ -41,7 +41,6 @@ export interface SolverConfig {
   expansionStep: number
   maxIterations: number
   timeoutMsPerAttempt: number
-  conveyorGap: number
 }
 
 export interface SolverAttempt {

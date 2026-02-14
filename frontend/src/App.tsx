@@ -18,7 +18,6 @@ const DEFAULT_CONFIG: SolverConfig = {
   expansionStep: 1,
   maxIterations: 50,
   timeoutMsPerAttempt: 30000,
-  conveyorGap: 1,
 }
 
 export default function App() {
@@ -133,7 +132,7 @@ export default function App() {
 
         {/* Main canvas */}
         <div className="flex-1 rounded-lg border border-gray-800 bg-gray-900 p-4">
-          <GridCanvas solution={solution} />
+          <GridCanvas solution={solution} graph={BUCKWHEAT_CAPSULE} />
         </div>
       </div>
     </div>

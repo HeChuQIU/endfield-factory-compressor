@@ -78,13 +78,12 @@ public static partial class BuildingDefinitions
 
 public class Z3Solver
 {
-    public static (double W, double H) EstimateInitialBounds(Models.ProductionGraph graph, int gap = 1)
+    public static (double W, double H) EstimateInitialBounds(Models.ProductionGraph graph)
     {
         var totalArea = graph.Nodes.Sum(n =>
-        {
-            var def = BuildingDefinitions.Buildings[n.Type];
-            return (def.Width + gap) * (def.Length + gap);
-        });
+            BuildingDefinitions.Buildings[n.Type].Width *
+            BuildingDefinitions.Buildings[n.Type].Length
+        );
         var side = Math.Ceiling(Math.Sqrt(totalArea));
         return (side, side);
     }
@@ -109,8 +108,7 @@ public class Z3Solver
         Models.ProductionGraph graph,
         int width,
         int height,
-        int timeoutMs,
-        int conveyorGap = 1
+        int timeoutMs
     )
     {
         using var ctx = new Context();
@@ -141,9 +139,7 @@ public class Z3Solver
             solver.Add(ctx.MkEq(firstY, ctx.MkInt(0)));
         }
 
-        // Non-overlap constraints with conveyor gap
-        // Every pair of buildings must have at least `conveyorGap` cells
-        // between them to allow conveyor belt routing.
+        // Non-overlap constraints
         for (int i = 0; i < graph.Nodes.Count; i++)
         {
             for (int j = i + 1; j < graph.Nodes.Count; j++)
@@ -155,13 +151,12 @@ public class Z3Solver
                 var defA = BuildingDefinitions.Buildings[nodeA.Type];
                 var defB = BuildingDefinitions.Buildings[nodeB.Type];
 
-                var gap = ctx.MkInt(conveyorGap);
                 solver.Add(
                     ctx.MkOr(
-                        ctx.MkLe(ctx.MkAdd(xiA, ctx.MkInt(defA.Length), gap), xiB),
-                        ctx.MkLe(ctx.MkAdd(xiB, ctx.MkInt(defB.Length), gap), xiA),
-                        ctx.MkLe(ctx.MkAdd(yiA, ctx.MkInt(defA.Width), gap), yiB),
-                        ctx.MkLe(ctx.MkAdd(yiB, ctx.MkInt(defB.Width), gap), yiA)
+                        ctx.MkLe(ctx.MkAdd(xiA, ctx.MkInt(defA.Length)), xiB),
+                        ctx.MkLe(ctx.MkAdd(xiB, ctx.MkInt(defB.Length)), xiA),
+                        ctx.MkLe(ctx.MkAdd(yiA, ctx.MkInt(defA.Width)), yiB),
+                        ctx.MkLe(ctx.MkAdd(yiB, ctx.MkInt(defB.Width)), yiA)
                     )
                 );
             }
@@ -210,14 +205,13 @@ public class Z3Solver
         var startTime = DateTime.Now;
         var attempts = new List<Models.SolverAttempt>();
 
-        var gap = config.ConveyorGap;
-        var (estW, estH) = EstimateInitialBounds(graph, gap);
+        var (estW, estH) = EstimateInitialBounds(graph);
         var w = config.InitialWidth ?? (int)estW;
         var h = config.InitialHeight ?? (int)estH;
 
         for (int iteration = 1; iteration <= config.MaxIterations; iteration++)
         {
-            var (status, placements) = TrySolve(graph, w, h, config.TimeoutMsPerAttempt, gap);
+            var (status, placements) = TrySolve(graph, w, h, config.TimeoutMsPerAttempt);
 
             var attempt = new Models.SolverAttempt
             {

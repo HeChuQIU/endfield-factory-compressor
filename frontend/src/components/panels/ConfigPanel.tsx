@@ -63,17 +63,6 @@ export function ConfigPanel({ config, onChange }: ConfigPanelProps) {
           />
         </div>
         <div className="flex items-center gap-2">
-          <label className="w-20 text-gray-400">传送间距</label>
-          <input
-            type="number"
-            className="w-full rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-200"
-            min={0}
-            max={5}
-            value={config.conveyorGap}
-            onChange={(e) => update({ conveyorGap: Number(e.target.value) || 1 })}
-          />
-        </div>
-        <div className="flex items-center gap-2">
           <label className="w-20 text-gray-400">最大迭代</label>
           <input
             type="number"
