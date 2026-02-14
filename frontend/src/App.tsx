@@ -18,6 +18,7 @@ const DEFAULT_CONFIG: SolverConfig = {
   expansionStep: 1,
   maxIterations: 50,
   timeoutMsPerAttempt: 30000,
+  conveyorGap: 1,
 }
 
 export default function App() {

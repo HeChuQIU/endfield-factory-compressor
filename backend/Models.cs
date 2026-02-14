@@ -59,6 +59,7 @@ public class SolverConfig
     public int ExpansionStep { get; set; } = 1;
     public int MaxIterations { get; set; } = 50;
     public int TimeoutMsPerAttempt { get; set; } = 30000;
+    public int ConveyorGap { get; set; } = 1;
 }
 
 public class SolverAttempt
