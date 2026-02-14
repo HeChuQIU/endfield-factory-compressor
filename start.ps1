@@ -33,7 +33,7 @@ Write-Host ""
 Write-Host "[2/3] 恢复后端依赖..." -ForegroundColor Yellow
 Push-Location "$ProjectRoot\backend"
 try {
-    dotnet build --configuration Release -q 2>$null
+    dotnet build -q 2>$null
     Write-Host "  ✓ 后端已构建" -ForegroundColor Green
 } catch {
     Write-Host "  警告: 后端构建失败，尝试继续..." -ForegroundColor Yellow
@@ -69,7 +69,7 @@ Write-Host "  → 启动后端服务器..." -ForegroundColor Cyan
 $BackendProcess = Start-Process powershell -ArgumentList @(
     "-NoExit",
     "-Command",
-    "cd '$ProjectRoot\backend'; Write-Host '🔧 后端服务器 (https://localhost:7238)' -ForegroundColor Magenta; dotnet run --configuration Release"
+    "cd '$ProjectRoot\backend'; Write-Host '🔧 后端服务器 (http://localhost:5049)' -ForegroundColor Magenta; dotnet run"
 ) -PassThru -WindowStyle Normal
 
 Start-Sleep -Seconds 3
@@ -87,7 +87,7 @@ Write-Host "=====================================" -ForegroundColor Green
 Write-Host "  ✓ 服务已启动！" -ForegroundColor Green
 Write-Host "=====================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "  后端: https://localhost:7238" -ForegroundColor White
+Write-Host "  后端: http://localhost:5049" -ForegroundColor White
 Write-Host "  前端: http://localhost:5173" -ForegroundColor White
 Write-Host ""
 Write-Host "提示: 关闭新打开的窗口即可停止服务" -ForegroundColor Gray
