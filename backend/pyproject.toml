@@ -1,0 +1,29 @@
+[project]
+name = "endfield-factory-compressor"
+version = "0.1.0"
+description = "Endfield factory layout compressor - Z3 SAT solver backend"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.34.0",
+    "z3-solver>=4.13.0",
+    "pydantic>=2.10.0",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "ruff>=0.11.0",
+    "pyright>=1.1.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pyright]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"

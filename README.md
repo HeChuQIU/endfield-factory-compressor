@@ -1,51 +1,71 @@
 # Endfield Factory Compressor
 
-用于《明日方舟：终末地》基建布局压缩的 Web 工具，目标是在给定产线下自动寻找更小的可行布局。
+用于《明日方舟：终末地》基建布局压缩的 Web 工具，在给定产线下自动寻找更小的可行布局。
 
 ## 技术栈
 
-- React 18 + TypeScript + Vite
-- Radix UI + Tailwind CSS
-- `z3-solver`（Microsoft Z3 的 WASM 版本）
-- Web Worker 求解（避免阻塞前端 UI）
+### 后端
+- **Python 3.12+** + uv (包管理)
+- **FastAPI** + Uvicorn
+- **z3-solver** (原生 Z3 SAT/SMT 求解器)
+- **SignalR Hub Protocol** (JSON over WebSocket)
 
-## 已实现（MVP）
+### 前端
+- **React 18** + TypeScript + Vite
+- **Tailwind CSS v4**
+- **@microsoft/signalr** (SignalR 客户端)
+- **pnpm** (包管理)
+- **Canvas** 网格可视化
 
-- 精选荞愈胶囊示例产线数据（29 台机器）
-- 建筑尺寸模型（3x3 与 3x6）
-- SAT/SMT 约束：建筑边界约束 + 两两不重叠约束
-- 迭代扩边求解策略：
-  - 基于机器总占地面积估算初始 `W/H`
-  - 支持用户手动设置初始 `W/H`
-  - 支持固定 `W` 或固定 `H`，逐步扩边直到找到可行解
-- 连接有效性：
-  - 求解后执行传送带路径搜索，确保每条工艺边可连通
-  - 支持传送带桥（同格正交交叉）标记与可视化
-  - 仅当“布局可放置 + 全链路可连接”时返回 `sat`
-- 前端可视化：
-  - 配置面板（初始边界、固定维度、步长、迭代上限）
-  - 求解面板（实时迭代日志）
-  - 网格渲染结果（建筑、传送带/传送带桥）
+## 项目结构
 
-## 测试
-
-```bash
-npm run test
+```
+ backend/                 # Python 后端
+    pyproject.toml       # uv 项目配置
+    src/solver/
+        app.py           # FastAPI 入口 + WebSocket 端点
+        signalr_hub.py   # SignalR JSON Hub Protocol 实现
+        solver_hub.py    # 求解器 Hub 方法注册
+        z3_solver.py     # Z3 约束构建 + 迭代求解
+        models.py        # Pydantic 数据模型
+        buildings.py     # 建筑定义
+ frontend/                # React 前端
+    package.json         # pnpm 配置
+    src/
+        App.tsx           # 主应用
+        types/models.ts   # TypeScript 类型
+        solver/           # SignalR 客户端
+        examples/         # 示例产线
+        components/       # UI 组件
+ examples/                # 产线文档
 ```
 
 ## 开发
 
+### 后端
+
 ```bash
-npm install
-npm run dev
+cd backend
+uv sync                     # 安装依赖
+uv run serve                # 启动开发服务器 (localhost:8080)
 ```
+
+### 前端
+
+```bash
+cd frontend
+pnpm install                # 安装依赖
+pnpm dev                    # 启动开发服务器 (localhost:5173)
+```
+
+Vite 开发服务器会将 /solver WebSocket 请求代理到后端 localhost:8080。
 
 ## 构建
 
 ```bash
-npm run build
+# 前端
+cd frontend && pnpm build
+
+# 后端
+cd backend && uv run serve
 ```
-
-## 项目状态
-
-当前范围（不包含电力塔）已完整可用：可配置初始边界、迭代扩边求解、连接校验、传送带桥可视化、测试与构建均通过。
