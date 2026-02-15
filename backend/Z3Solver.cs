@@ -103,17 +103,32 @@ public class Z3Solver
 {
     public static (double W, double H) EstimateInitialBounds(Models.ProductionGraph graph)
     {
-        // Include space for machines
+        if (graph.Nodes == null || graph.Nodes.Count == 0)
+        {
+            return (3, 3); // Minimum default size
+        }
+        
+        // For each machine, calculate its footprint
         var machineArea = graph.Nodes.Sum(n =>
             BuildingDefinitions.Buildings[n.Type].Width *
             BuildingDefinitions.Buildings[n.Type].Length
         );
         
         // Add space for conveyors (rough estimate: 2 belts per connection)
-        var conveyorArea = graph.Edges.Sum(e => e.Belts * 2);
+        var conveyorArea = (graph.Edges != null) ? graph.Edges.Sum(e => e.Belts * 2) : 0;
         
         var totalArea = machineArea + conveyorArea;
-        var side = Math.Ceiling(Math.Sqrt(totalArea) * 1.2); // 20% buffer
+        
+        // Start with minimum size to fit the largest machine
+        var maxLength = graph.Nodes.Max(n => BuildingDefinitions.Buildings[n.Type].Length);
+        var maxWidth = graph.Nodes.Max(n => BuildingDefinitions.Buildings[n.Type].Width);
+        
+        // Use the larger of: minimum to fit largest machine, or sqrt of total area
+        var side = Math.Max(
+            Math.Max(maxLength, maxWidth),
+            Math.Ceiling(Math.Sqrt(totalArea))
+        );
+        
         return (side, side);
     }
 
