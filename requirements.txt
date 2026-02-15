@@ -1,0 +1,18 @@
+# Endfield Factory Compressor - Dependencies
+
+# Core dependencies
+numpy>=1.21.0
+networkx>=2.6.0
+
+# Optional: Visualization
+matplotlib>=3.4.0
+
+# Optional: SAT solvers (for future enhancements)
+# python-sat>=0.1.7
+# z3-solver>=4.8.0
+
+# Development dependencies
+pytest>=7.0.0
+pytest-cov>=3.0.0
+black>=22.0.0
+mypy>=0.950
