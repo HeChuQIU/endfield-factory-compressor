@@ -306,10 +306,19 @@ public class Z3Solver
                 }
             }
             
-            // Machine must be placed somewhere
+            // Machine must be placed at exactly one position
             if (positions.Count > 0)
             {
                 solver.Add(ctx.MkOr(positions.ToArray()));
+                
+                // At most one position (mutual exclusion)
+                for (int i = 0; i < positions.Count; i++)
+                {
+                    for (int j = i + 1; j < positions.Count; j++)
+                    {
+                        solver.Add(ctx.MkNot(ctx.MkAnd(positions[i], positions[j])));
+                    }
+                }
             }
             
             // If a tile belongs to this machine, it must be a machine tile
