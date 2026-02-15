@@ -6,7 +6,23 @@ public enum BuildingType
     Grinder,
     Molder,
     Refinery,
-    Crusher
+    Crusher,
+    Conveyor
+}
+
+public enum Direction
+{
+    Up = 0,
+    Right = 1,
+    Down = 2,
+    Left = 3
+}
+
+public enum TileType
+{
+    Empty = 0,
+    Machine = 1,
+    Conveyor = 2
 }
 
 public enum FixedDimensionMode
