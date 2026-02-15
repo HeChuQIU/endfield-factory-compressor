@@ -5,6 +5,7 @@ import type {
   ProductionGraph,
   MachineNode,
   MaterialFlowEdge,
+  ConveyorSegment,
 } from '../../types/models'
 
 const CELL_SIZE = 40
@@ -21,6 +22,10 @@ const BUILDING_INFO: Record<
   refinery:{ fill: '#dc2626', stroke: '#f87171', name: '精炼炉' },
   crusher: { fill: '#7c3aed', stroke: '#a78bfa', name: '粉碎机' },
 }
+
+/** Conveyor belt visual style */
+const CONVEYOR_COLOR = '#fbbf24' // Yellow/amber for belts
+const BRIDGE_COLOR = '#06b6d4' // Cyan for bridges
 
 /** Golden-angle hue assignment for material flow colors */
 function getItemColor(item: string, allItems: string[]): string {
@@ -55,6 +60,99 @@ function drawChevron(
     ctx.lineTo(cx + size / 2, cy + size / 3)
   }
   ctx.stroke()
+}
+
+/** Draw a directional arrow on a conveyor belt */
+function drawConveyorArrow(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  direction: 'up' | 'right' | 'down' | 'left',
+  cellSize: number,
+  color: string,
+) {
+  const cx = x + cellSize / 2
+  const cy = y + cellSize / 2
+  const arrowSize = cellSize * 0.3
+
+  ctx.strokeStyle = color
+  ctx.fillStyle = color
+  ctx.lineWidth = 2
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+
+  ctx.beginPath()
+  
+  switch (direction) {
+    case 'up':
+      // Arrow pointing up
+      ctx.moveTo(cx, cy - arrowSize)
+      ctx.lineTo(cx - arrowSize * 0.6, cy + arrowSize * 0.3)
+      ctx.lineTo(cx + arrowSize * 0.6, cy + arrowSize * 0.3)
+      break
+    case 'down':
+      // Arrow pointing down
+      ctx.moveTo(cx, cy + arrowSize)
+      ctx.lineTo(cx - arrowSize * 0.6, cy - arrowSize * 0.3)
+      ctx.lineTo(cx + arrowSize * 0.6, cy - arrowSize * 0.3)
+      break
+    case 'left':
+      // Arrow pointing left
+      ctx.moveTo(cx - arrowSize, cy)
+      ctx.lineTo(cx + arrowSize * 0.3, cy - arrowSize * 0.6)
+      ctx.lineTo(cx + arrowSize * 0.3, cy + arrowSize * 0.6)
+      break
+    case 'right':
+      // Arrow pointing right
+      ctx.moveTo(cx + arrowSize, cy)
+      ctx.lineTo(cx - arrowSize * 0.3, cy - arrowSize * 0.6)
+      ctx.lineTo(cx - arrowSize * 0.3, cy + arrowSize * 0.6)
+      break
+  }
+  
+  ctx.closePath()
+  ctx.fill()
+}
+
+/** Draw a single conveyor belt tile */
+function drawConveyorTile(
+  ctx: CanvasRenderingContext2D,
+  conveyor: ConveyorSegment,
+  cellSize: number,
+  padding: number,
+) {
+  const px = (conveyor.x + padding) * cellSize
+  const py = (conveyor.y + padding) * cellSize
+  
+  const isBridge = conveyor.isBridge ?? false
+  const color = isBridge ? BRIDGE_COLOR : CONVEYOR_COLOR
+  
+  // Background for belt/bridge
+  ctx.fillStyle = color + '40' // Semi-transparent
+  ctx.fillRect(px + 2, py + 2, cellSize - 4, cellSize - 4)
+  
+  // Border
+  ctx.strokeStyle = color + 'aa'
+  ctx.lineWidth = isBridge ? 2 : 1.5
+  ctx.setLineDash(isBridge ? [3, 3] : [])
+  ctx.strokeRect(px + 2, py + 2, cellSize - 4, cellSize - 4)
+  ctx.setLineDash([])
+  
+  // Draw directional arrow showing flow direction
+  drawConveyorArrow(ctx, px, py, conveyor.outDirection, cellSize, color + 'dd')
+  
+  // For bridges, show cross pattern to indicate crossing
+  if (isBridge) {
+    ctx.strokeStyle = color + '66'
+    ctx.lineWidth = 1
+    const offset = cellSize * 0.25
+    ctx.beginPath()
+    ctx.moveTo(px + offset, py + offset)
+    ctx.lineTo(px + cellSize - offset, py + cellSize - offset)
+    ctx.moveTo(px + cellSize - offset, py + offset)
+    ctx.lineTo(px + offset, py + cellSize - offset)
+    ctx.stroke()
+  }
 }
 
 /** Draw a single building with ports and Chinese name */
@@ -285,7 +383,15 @@ export function GridCanvas({ solution, graph }: GridCanvasProps) {
     const placementMap = new Map<string, PlacedBuilding>()
     for (const p of placements) placementMap.set(p.nodeId, p)
 
-    // Draw conveyor connections (behind buildings)
+    // Draw conveyor belt tiles (behind buildings)
+    const { conveyors } = solution
+    if (conveyors && conveyors.length > 0) {
+      for (const conveyor of conveyors) {
+        drawConveyorTile(ctx, conveyor, CELL_SIZE, PADDING)
+      }
+    }
+
+    // Draw conveyor connections (material flow lines, behind buildings)
     if (graph) {
       drawConveyors(ctx, graph.edges, placementMap, CELL_SIZE, PADDING)
     }
@@ -345,6 +451,15 @@ export function GridCanvas({ solution, graph }: GridCanvasProps) {
         }))
       : []
 
+  // Conveyor statistics
+  const conveyorStats = solution?.status === 'sat' && solution.conveyors
+    ? {
+        total: solution.conveyors.length,
+        bridges: solution.conveyors.filter(c => c.isBridge).length,
+        belts: solution.conveyors.filter(c => !c.isBridge).length,
+      }
+    : null
+
   return (
     <div className="flex flex-col items-center gap-3">
       {solution?.status === 'sat' && (
@@ -353,6 +468,12 @@ export function GridCanvas({ solution, graph }: GridCanvasProps) {
             {solution.bounds.width}×{solution.bounds.height}
           </span>
           <span>{solution.placements.length} 建筑</span>
+          {conveyorStats && conveyorStats.total > 0 && (
+            <span>
+              {conveyorStats.belts} 传送带
+              {conveyorStats.bridges > 0 && ` + ${conveyorStats.bridges} 桥`}
+            </span>
+          )}
           <span>{solution.elapsedMs.toFixed(0)}ms</span>
           <span className="flex items-center gap-1">
             <span style={{ color: '#4ade80' }}>∨</span> 输入
@@ -387,6 +508,31 @@ export function GridCanvas({ solution, graph }: GridCanvasProps) {
               <span className="text-gray-500">{m.item}</span>
             </div>
           ))}
+        </div>
+      )}
+      {conveyorStats && conveyorStats.total > 0 && (
+        <div className="flex flex-wrap justify-center gap-3 text-xs">
+          {conveyorStats.belts > 0 && (
+            <div className="flex items-center gap-1.5">
+              <span
+                className="inline-block h-3 w-3 rounded-sm"
+                style={{ backgroundColor: CONVEYOR_COLOR + '80' }}
+              />
+              <span className="text-gray-400">传送带 ×{conveyorStats.belts}</span>
+            </div>
+          )}
+          {conveyorStats.bridges > 0 && (
+            <div className="flex items-center gap-1.5">
+              <span
+                className="inline-block h-3 w-3 rounded-sm border border-dashed"
+                style={{ 
+                  backgroundColor: BRIDGE_COLOR + '80',
+                  borderColor: BRIDGE_COLOR
+                }}
+              />
+              <span className="text-gray-400">传送带桥 ×{conveyorStats.bridges}</span>
+            </div>
+          )}
         </div>
       )}
     </div>

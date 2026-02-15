@@ -1,15 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
   LayoutSolution,
+  ProductionGraph,
   SolverAttempt,
   SolverConfig,
   SolverStreamItem,
 } from './types/models'
 import { createSolverClient, type ConnectionStatus } from './solver/signalr-client'
 import { BUCKWHEAT_CAPSULE } from './examples/buckwheat-capsule'
+import { STEEL_BLOCK } from './examples/steel-block'
 import { GridCanvas } from './components/layout/GridCanvas'
 import { ConfigPanel } from './components/panels/ConfigPanel'
 import { SolverPanel } from './components/panels/SolverPanel'
+
+const EXAMPLES: Record<string, ProductionGraph> = {
+  'steel-block': STEEL_BLOCK,
+  'buckwheat-capsule': BUCKWHEAT_CAPSULE,
+}
 
 const DEFAULT_CONFIG: SolverConfig = {
   initialWidth: null,
@@ -23,11 +30,14 @@ const DEFAULT_CONFIG: SolverConfig = {
 export default function App() {
   const clientRef = useRef(createSolverClient())
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected')
+  const [selectedExample, setSelectedExample] = useState<string>('steel-block')
   const [config, setConfig] = useState<SolverConfig>(DEFAULT_CONFIG)
   const [attempts, setAttempts] = useState<SolverAttempt[]>([])
   const [solution, setSolution] = useState<LayoutSolution | null>(null)
   const [solving, setSolving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const currentGraph = EXAMPLES[selectedExample]
 
   // Poll connection status
   useEffect(() => {
@@ -60,7 +70,7 @@ export default function App() {
     setSolving(true)
 
     try {
-      await clientRef.current.solve(BUCKWHEAT_CAPSULE, config, (item: SolverStreamItem) => {
+      await clientRef.current.solve(currentGraph, config, (item: SolverStreamItem) => {
         if (item.type === 'attempt') {
           setAttempts((prev) => [...prev, item.data])
         } else if (item.type === 'solution') {
@@ -72,7 +82,7 @@ export default function App() {
     } finally {
       setSolving(false)
     }
-  }, [config])
+  }, [currentGraph, config])
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100">
@@ -84,6 +94,19 @@ export default function App() {
       <div className="flex gap-4 p-4">
         {/* Left panel */}
         <div className="w-80 shrink-0 space-y-4">
+          {/* Example selector */}
+          <div className="rounded-lg border border-gray-800 bg-gray-900 p-4">
+            <h2 className="mb-2 text-sm font-semibold text-gray-300">产线示例</h2>
+            <select
+              value={selectedExample}
+              onChange={(e) => setSelectedExample(e.target.value)}
+              className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-200"
+            >
+              <option value="steel-block">钢块生产 (1满带)</option>
+              <option value="buckwheat-capsule">精选荞愈胶囊 (复杂)</option>
+            </select>
+          </div>
+
           {/* Connection */}
           <div className="rounded-lg border border-gray-800 bg-gray-900 p-4">
             <h2 className="mb-2 text-sm font-semibold text-gray-300">连接</h2>
@@ -132,7 +155,7 @@ export default function App() {
 
         {/* Main canvas */}
         <div className="flex-1 rounded-lg border border-gray-800 bg-gray-900 p-4">
-          <GridCanvas solution={solution} graph={BUCKWHEAT_CAPSULE} />
+          <GridCanvas solution={solution} graph={currentGraph} />
         </div>
       </div>
     </div>
