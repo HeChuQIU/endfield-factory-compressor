@@ -22,7 +22,8 @@ public enum TileType
 {
     Empty = 0,
     Machine = 1,
-    Conveyor = 2
+    Conveyor = 2,
+    Bridge = 3  // Conveyor bridge - allows crossing without mixing
 }
 
 public enum FixedDimensionMode

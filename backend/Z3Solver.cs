@@ -94,6 +94,7 @@ internal class TileVars
     public required BoolExpr IsEmpty { get; set; }
     public required BoolExpr IsMachine { get; set; }
     public required BoolExpr IsConveyor { get; set; }
+    public required BoolExpr IsBridge { get; set; }  // Conveyor bridge for crossing
     public required Dictionary<string, BoolExpr> MachineId { get; set; } // nodeId -> bool
     public required Dictionary<Models.Direction, BoolExpr> InDirection { get; set; }
     public required Dictionary<Models.Direction, BoolExpr> OutDirection { get; set; }
@@ -163,6 +164,7 @@ public class Z3Solver
             IsEmpty = ctx.MkBoolConst($"{prefix}_empty"),
             IsMachine = ctx.MkBoolConst($"{prefix}_machine"),
             IsConveyor = ctx.MkBoolConst($"{prefix}_conveyor"),
+            IsBridge = ctx.MkBoolConst($"{prefix}_bridge"),
             MachineId = machineIdVars,
             InDirection = new Dictionary<Models.Direction, BoolExpr>
             {
@@ -228,17 +230,23 @@ public class Z3Solver
             }
         }
 
-        // Constraint 1: Each tile has exactly one type (empty, machine, or conveyor)
+        // Constraint 1: Each tile has exactly one type (empty, machine, conveyor, or bridge)
         for (int x = 0; x < width; x++)
         {
             for (int y = 0; y < height; y++)
             {
                 var tile = tiles[x, y];
-                // Exactly one of: empty, machine, conveyor
-                solver.Add(ctx.MkOr(tile.IsEmpty, tile.IsMachine, tile.IsConveyor));
+                
+                // Exactly one type: at least one must be true
+                solver.Add(ctx.MkOr(tile.IsEmpty, tile.IsMachine, tile.IsConveyor, tile.IsBridge));
+                
+                // Mutual exclusion: no two can be true at the same time
                 solver.Add(ctx.MkNot(ctx.MkAnd(tile.IsEmpty, tile.IsMachine)));
                 solver.Add(ctx.MkNot(ctx.MkAnd(tile.IsEmpty, tile.IsConveyor)));
+                solver.Add(ctx.MkNot(ctx.MkAnd(tile.IsEmpty, tile.IsBridge)));
                 solver.Add(ctx.MkNot(ctx.MkAnd(tile.IsMachine, tile.IsConveyor)));
+                solver.Add(ctx.MkNot(ctx.MkAnd(tile.IsMachine, tile.IsBridge)));
+                solver.Add(ctx.MkNot(ctx.MkAnd(tile.IsConveyor, tile.IsBridge)));
                 
                 // If machine, exactly one machine ID is true
                 var machineIdList = tile.MachineId.Values.ToArray();
@@ -261,38 +269,81 @@ public class Z3Solver
                 solver.Add(ctx.MkImplies(tile.IsEmpty,
                     ctx.MkAnd(tile.OutDirection.Values.Select(v => ctx.MkNot(v)).ToArray())));
                 
-                // If conveyor, exactly one input direction and one output direction
+                // If machine, no directions (machines don't have belt directions)
+                solver.Add(ctx.MkImplies(tile.IsMachine,
+                    ctx.MkAnd(tile.InDirection.Values.Select(v => ctx.MkNot(v)).ToArray())));
+                solver.Add(ctx.MkImplies(tile.IsMachine,
+                    ctx.MkAnd(tile.OutDirection.Values.Select(v => ctx.MkNot(v)).ToArray())));
+                
+                // If conveyor, exactly one input direction and one output direction (must be different)
+                // If bridge, exactly TWO input directions and TWO output directions (perpendicular flows)
                 if (tile.InDirection.Count > 0)
                 {
                     var inDirList = tile.InDirection.Values.ToArray();
                     var outDirList = tile.OutDirection.Values.ToArray();
                     
+                    // Conveyor: exactly one input and one output
                     solver.Add(ctx.MkImplies(tile.IsConveyor, ctx.MkOr(inDirList)));
                     solver.Add(ctx.MkImplies(tile.IsConveyor, ctx.MkOr(outDirList)));
                     
-                    // Exactly one input direction
+                    // Exactly one input direction for conveyor
                     for (int i = 0; i < inDirList.Length; i++)
                     {
                         for (int j = i + 1; j < inDirList.Length; j++)
                         {
-                            solver.Add(ctx.MkNot(ctx.MkAnd(inDirList[i], inDirList[j])));
+                            solver.Add(ctx.MkImplies(tile.IsConveyor, ctx.MkNot(ctx.MkAnd(inDirList[i], inDirList[j]))));
                         }
                     }
                     
-                    // Exactly one output direction
+                    // Exactly one output direction for conveyor
                     for (int i = 0; i < outDirList.Length; i++)
                     {
                         for (int j = i + 1; j < outDirList.Length; j++)
                         {
-                            solver.Add(ctx.MkNot(ctx.MkAnd(outDirList[i], outDirList[j])));
+                            solver.Add(ctx.MkImplies(tile.IsConveyor, ctx.MkNot(ctx.MkAnd(outDirList[i], outDirList[j]))));
                         }
                     }
                     
-                    // Input and output must be different
+                    // Conveyor: Input and output must be different
                     foreach (var dir in tile.InDirection.Keys)
                     {
-                        solver.Add(ctx.MkNot(ctx.MkAnd(tile.InDirection[dir], tile.OutDirection[dir])));
+                        solver.Add(ctx.MkImplies(tile.IsConveyor, 
+                            ctx.MkNot(ctx.MkAnd(tile.InDirection[dir], tile.OutDirection[dir]))));
                     }
+                    
+                    // Bridge: exactly TWO perpendicular flows (e.g., Up/Down AND Left/Right)
+                    // A bridge has two independent flows that don't mix
+                    var isVerticalFlow = ctx.MkAnd(
+                        ctx.MkOr(tile.InDirection[Models.Direction.Up], tile.InDirection[Models.Direction.Down]),
+                        ctx.MkOr(tile.OutDirection[Models.Direction.Up], tile.OutDirection[Models.Direction.Down])
+                    );
+                    var isHorizontalFlow = ctx.MkAnd(
+                        ctx.MkOr(tile.InDirection[Models.Direction.Left], tile.InDirection[Models.Direction.Right]),
+                        ctx.MkOr(tile.OutDirection[Models.Direction.Left], tile.OutDirection[Models.Direction.Right])
+                    );
+                    
+                    // Bridge must have both vertical and horizontal flows
+                    solver.Add(ctx.MkImplies(tile.IsBridge, ctx.MkAnd(isVerticalFlow, isHorizontalFlow)));
+                    
+                    // Bridge: vertical in/out must match (if in from Up, out to Down or vice versa)
+                    solver.Add(ctx.MkImplies(
+                        ctx.MkAnd(tile.IsBridge, tile.InDirection[Models.Direction.Up]),
+                        tile.OutDirection[Models.Direction.Down]
+                    ));
+                    solver.Add(ctx.MkImplies(
+                        ctx.MkAnd(tile.IsBridge, tile.InDirection[Models.Direction.Down]),
+                        tile.OutDirection[Models.Direction.Up]
+                    ));
+                    
+                    // Bridge: horizontal in/out must match (if in from Left, out to Right or vice versa)
+                    solver.Add(ctx.MkImplies(
+                        ctx.MkAnd(tile.IsBridge, tile.InDirection[Models.Direction.Left]),
+                        tile.OutDirection[Models.Direction.Right]
+                    ));
+                    solver.Add(ctx.MkImplies(
+                        ctx.MkAnd(tile.IsBridge, tile.InDirection[Models.Direction.Right]),
+                        tile.OutDirection[Models.Direction.Left]
+                    ));
                 }
             }
         }
@@ -346,7 +397,47 @@ public class Z3Solver
             }
         }
 
-        // Constraint 3: Adjacent tiles must have consistent connectivity
+        // Constraint 3: Machines cannot be adjacent to other machine tiles (different machines)
+        // This enforces the rule that machines MUST connect through conveyors/bridges
+        for (int x = 0; x < width; x++)
+        {
+            for (int y = 0; y < height; y++)
+            {
+                var tile = tiles[x, y];
+                
+                // For each direction, if this is a machine tile, the adjacent tile cannot be a different machine
+                foreach (var dir in new[] { Models.Direction.Up, Models.Direction.Right, Models.Direction.Down, Models.Direction.Left })
+                {
+                    var (dx, dy) = DirectionVector(dir);
+                    var nx = x + dx;
+                    var ny = y + dy;
+                    
+                    if (nx >= 0 && nx < width && ny >= 0 && ny < height)
+                    {
+                        var neighborTile = tiles[nx, ny];
+                        
+                        // If this tile and neighbor are both machines, they must be the same machine (same footprint)
+                        // Otherwise they must NOT both be machines (different machines can't be adjacent)
+                        foreach (var nodeId in nodeIds)
+                        {
+                            foreach (var otherNodeId in nodeIds)
+                            {
+                                if (nodeId != otherNodeId)
+                                {
+                                    // Different machines cannot be adjacent
+                                    solver.Add(ctx.MkNot(ctx.MkAnd(
+                                        tile.MachineId[nodeId],
+                                        neighborTile.MachineId[otherNodeId]
+                                    )));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Constraint 4: Adjacent tiles must have consistent connectivity for conveyors and bridges
         for (int x = 0; x < width; x++)
         {
             for (int y = 0; y < height; y++)
@@ -364,17 +455,29 @@ public class Z3Solver
                         var neighborTile = tiles[nx, ny];
                         var oppositeDir = OppositeDirection(dir);
                         
-                        // If this tile outputs in direction, neighbor must input from opposite direction
+                        // If conveyor outputs in a direction, neighbor must be conveyor or bridge that accepts input
                         solver.Add(ctx.MkImplies(
                             ctx.MkAnd(tile.IsConveyor, tile.OutDirection[dir]),
-                            ctx.MkAnd(neighborTile.IsConveyor, neighborTile.InDirection[oppositeDir])
+                            ctx.MkAnd(
+                                ctx.MkOr(neighborTile.IsConveyor, neighborTile.IsBridge),
+                                neighborTile.InDirection[oppositeDir]
+                            )
+                        ));
+                        
+                        // If bridge outputs in a direction, neighbor must be conveyor or bridge that accepts input
+                        solver.Add(ctx.MkImplies(
+                            ctx.MkAnd(tile.IsBridge, tile.OutDirection[dir]),
+                            ctx.MkAnd(
+                                ctx.MkOr(neighborTile.IsConveyor, neighborTile.IsBridge),
+                                neighborTile.InDirection[oppositeDir]
+                            )
                         ));
                     }
                 }
             }
         }
 
-        // Constraint 4: Each edge in graph must have corresponding conveyor path
+        // Constraint 5: Each edge in graph must have corresponding conveyor path
         // For simplicity, we'll relax this constraint initially and just ensure
         // machines have adequate neighbors for connections
         // TODO: Add proper path constraints for material flows
@@ -449,6 +552,43 @@ public class Z3Solver
                                 InDirection = inDir,
                                 OutDirection = outDir,
                                 IsBridge = false
+                            });
+                        }
+                    }
+                    
+                    // Extract bridge segments
+                    if (model.Eval(tile.IsBridge).IsTrue)
+                    {
+                        var inDirs = new List<string>();
+                        var outDirs = new List<string>();
+                        
+                        foreach (var (dir, dirVar) in tile.InDirection)
+                        {
+                            if (model.Eval(dirVar).IsTrue)
+                            {
+                                inDirs.Add(dir.ToString().ToLower());
+                            }
+                        }
+                        
+                        foreach (var (dir, dirVar) in tile.OutDirection)
+                        {
+                            if (model.Eval(dirVar).IsTrue)
+                            {
+                                outDirs.Add(dir.ToString().ToLower());
+                            }
+                        }
+                        
+                        // Bridge has two flows - for simplicity, report the primary flow
+                        // (vertical or horizontal based on which is listed first)
+                        if (inDirs.Count >= 2 && outDirs.Count >= 2)
+                        {
+                            conveyors.Add(new Models.ConveyorSegment
+                            {
+                                X = x,
+                                Y = y,
+                                InDirection = inDirs[0],
+                                OutDirection = outDirs[0],
+                                IsBridge = true
                             });
                         }
                     }
